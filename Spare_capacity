@@ -1,0 +1,99 @@
+# -*- coding: utf-8 -*-
+"""
+Rolls Royce Story Telling Challenge
+Spare capacity visualisation
+"""
+
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+os.chdir('E:\\2_RollsRoyceData\\VisCompCSVDataset')
+EquipAct = pd.read_csv('Output_EquipmentActivities.csv', sep=',', index_col=[0])
+EquipList = pd.read_csv('EquipmentList.csv', sep=',', index_col=[0])
+
+# initial condition
+NumSpare_i = EquipList['INSTALLATION_LOCATION'].isnull().sum()
+#NumInUse_i = EquipList['INSTALLATION_LOCATION'].notna().sum()
+tolNum_i = len(EquipList['INSTALLATION_LOCATION'])
+
+# add a new col for the number of engines in use
+#EquipAct['NumInUse'] = pd.Series(np.repeat(0., len(EquipAct.index)), index=EquipAct.index)
+#EquipAct['NumInUse'] = EquipAct['ActivityType']
+#EquipAct['NumInUse'].replace(['Installation','Removal'], ['1', '-1'], inplace=True)
+#EquipAct['NumInUse'].replace(['Disposal','Site Transition Dispatch', 'Site Transition Delivery', 'Engine Test Entry', 'Engine Test Exit'], '0', inplace=True)
+#EquipAct['NumInUse'] = pd.to_numeric(EquipAct['NumInUse'], downcast='integer')
+
+# add a new col for the number of engines in use
+EquipAct['NumSpare'] = pd.Series(np.repeat(0., len(EquipAct.index)), index=EquipAct.index)
+EquipAct['NumSpare'] = EquipAct['ActivityType']
+EquipAct['NumSpare'].replace(['Installation','Removal'], ['-1', '1'], inplace=True)
+EquipAct['NumSpare'].replace(['Disposal','Site Transition Dispatch', 'Site Transition Delivery', 'Engine Test Entry', 'Engine Test Exit'], '0', inplace=True)
+EquipAct['NumSpare'] = pd.to_numeric(EquipAct['NumSpare'], downcast='integer')
+
+# add a new col for the total number of engines
+EquipAct['NumEngine'] = pd.Series(np.repeat(0., len(EquipAct.index)), index=EquipAct.index)
+EquipAct['NumEngine'] = EquipAct['ActivityType']
+EquipAct['NumEngine'].replace('Disposal', '-1', inplace=True)
+EquipAct['NumEngine'].replace(['Installation','Removal','Site Transition Dispatch', 'Site Transition Delivery', 'Engine Test Entry', 'Engine Test Exit'], '0', inplace=True)
+EquipAct['NumEngine'] = pd.to_numeric(EquipAct['NumEngine'], downcast='integer')
+
+# extract activities from simulation run 1 and sort by date
+run1 = EquipAct.index[EquipAct['RunNumber']==1].tolist()
+SpareCapacity = EquipAct.loc[run1]
+SpareCapacity['ActivityDate'] =pd.to_datetime(SpareCapacity['ActivityDate'])
+SpareCapacity.sort_values(['ActivityDate'], ascending=True, inplace=True)
+
+# add new cols to calculate accumulated sum of engine number in use/spare, all divided by total engine number
+#SpareCapacity['percUse'] = pd.Series(np.repeat(0., len(SpareCapacity.index)), index=SpareCapacity.index)
+#SpareCapacity['percUse'] = 100*(SpareCapacity['NumInUse'].cumsum() + NumInUse_i)/201
+
+SpareCapacity['tolNum'] = pd.Series(np.repeat(0., len(SpareCapacity.index)), index=SpareCapacity.index)
+SpareCapacity['tolNum'] = SpareCapacity['NumEngine'].cumsum() + tolNum_i
+
+SpareCapacity['percSpare'] = pd.Series(np.repeat(0., len(SpareCapacity.index)), index=SpareCapacity.index)
+SpareCapacity['percSpare'] = 100*(SpareCapacity['NumSpare'].cumsum() + NumSpare_i)/SpareCapacity['tolNum']
+
+
+
+
+# time series spare capacity plot
+time = matplotlib.dates.date2num(SpareCapacity['ActivityDate'].tolist())
+#percUsed = SpareCapacity['percUse'].tolist()
+percSpare = SpareCapacity['percSpare'].tolist()
+tolEngine = SpareCapacity['tolNum'].tolist()
+
+font = {'color':  'black',
+        'weight': 'normal',
+        'size': 16,
+        }
+
+#fig, ax1 = matplotlib.pylab.subplots(figsize=(15,9))
+
+fig = plt.figure(figsize=(15,9))
+ax = fig.add_subplot(111)
+
+bar = ax.bar(time, tolEngine, width=1, label='Total number of engines')
+ax2 = ax.twinx()
+line = ax2.plot(time, percSpare, 'r-', label='Spare engines')
+
+ax.xaxis_date()
+ax2.xaxis_date()
+plt.gcf().autofmt_xdate()
+
+ax.legend(loc='upper left', fontsize = 'x-large')
+ax2.legend(loc='upper right', fontsize = 'x-large')
+
+
+ax.grid()
+ax.set_title('Engine spare capacity', fontdict=font)
+ax.set_xlabel('Time (year)', fontdict=font)
+ax.set_ylabel('Total number of engines', fontdict=font)
+ax2.set_ylabel('Spare capacity (%)', fontdict=font)
+ax.set_ylim(0,250)
+ax2.set_ylim(0,100)
+
+fig.savefig('Spare_capacity_run1.png')
+plt.close(fig)
